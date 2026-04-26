@@ -341,6 +341,7 @@ const displayMode = computed(() => lyricSetting.value.displayMode);
 const showTranslation = computed(() => lyricSetting.value.showTranslation);
 
 let hideControlsTimer: number | null = null;
+let removeMousePresenceListener: (() => void) | null = null;
 
 const isHovering = ref(false);
 
@@ -400,6 +401,7 @@ watch(
       // 锁定时自动关闭主题色面板
       showThemeColorPanel.value = false;
     }
+    windowData.electron.ipcRenderer.send('set-lyric-lock-state', newLock);
   }
 );
 
@@ -782,10 +784,27 @@ onMounted(() => {
 
   // 通知主窗口歌词窗口已就绪，请求发送完整歌词数据
   windowData.electron.ipcRenderer.send('lyric-ready');
+
+  removeMousePresenceListener = window.ipcRenderer.on(
+    'lyric-mouse-presence',
+    (isInside: boolean) => {
+      isHovering.value = isInside;
+
+      if (lyricSetting.value.isLock) {
+        windowData.electron.ipcRenderer.send('set-ignore-mouse', !isInside);
+      }
+    }
+  );
+
+  windowData.electron.ipcRenderer.send('set-lyric-lock-state', lyricSetting.value.isLock);
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateContainerHeight);
+  if (removeMousePresenceListener) {
+    removeMousePresenceListener();
+    removeMousePresenceListener = null;
+  }
 });
 
 const checkTheme = () => {
